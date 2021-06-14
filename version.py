@@ -131,7 +131,7 @@ env.AlwaysBuild(ver_target_c)
 
 # Create a library for linking
 verlib = env.StaticLibrary(
-    '$BUILD_DIR/Gen',
+    '$BUILD_DIR/Version',
     [ver_target_c]
 )
 env.Append(LIBS=[verlib])
