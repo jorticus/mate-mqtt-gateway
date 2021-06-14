@@ -1,0 +1,9 @@
+[submodule "libraries/uMATE"]
+	path = libraries/uMATE
+	url = https://github.com/jorticus/uMATE.git
+[submodule "libraries/Serial9b"]
+	path = libraries/Serial9b
+	url = https://github.com/jorticus/Arduino-Serial9b.git
+[submodule "libraries/ESPSoftwareSerial"]
+	path = libraries/ESPSoftwareSerial
+	url = https://github.com/jorticus/espsoftwareserial.git
