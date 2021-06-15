@@ -1,8 +1,7 @@
 #pragma once
 
 #include <PubSubClient.h>
-
-
+#include <hacomponent.h>
 
 class Mqtt
 {
@@ -14,7 +13,7 @@ public:
     static void connect();
 
     static PubSubClient client;
-
+    static ComponentContext context;
 private:
     static void on_message_received(char* topic, byte* payload, size_t len);
     

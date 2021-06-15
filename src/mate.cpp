@@ -6,10 +6,15 @@
 #include "debug.h"
 #include "allocator.h"
 
+//#define DEBUG_COMMS
 
 // MATEnet bus is connected to a software serial port (9-bit)
 extern SoftwareSerial Serial9b; // main.cpp
+#ifdef DEBUG_COMMS
 MateControllerProtocol mate_bus(Serial9b, &Debug);
+#else
+MateControllerProtocol mate_bus(Serial9b);
+#endif
 
 // Functional devices found on the bus (excludes the hub)
 std::array<MateControllerDevice*, NUM_MATE_PORTS> devices;
@@ -66,44 +71,54 @@ void scan()
         return;
     }
 
-    Debug.print("0: ");
-    print_dtype(dtype);
-    Debug.println();
-
     // If a hub is present, we can scan for additional devices
     if (dtype == DeviceType::Hub) {
+        Debug.print("0: ");
+        print_dtype(dtype);
+        Debug.println();
+
         for (int i = 1; i < NUM_MATE_PORTS; i++) {
             dtype = mate_bus.scan(i);
             if (dtype != DeviceType::None) {
                 Debug.print(i);
                 Debug.print(": ");
                 print_dtype(dtype);
-                Debug.println();
 
                 // Allocate a new device instance using our fixed pool.
                 // These will not be deallocated until scan() is run again.
                 MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
                 if (device != nullptr) {
+                    #ifdef DEBUG_COMMS
+                    Debug.println();
+                    #endif
+
                     device->begin(i);
                     print_revision(*device);
-                    Debug.println();
 
                     devices[num_devices++] = device;
                 }
+                Debug.println();
             }
         }
     }
 
     // If port 0 is not a hub, then there can only be one device on the network.
     else {
+        Debug.print(0);
+        Debug.print(": ");
+        print_dtype(dtype);
+        
         MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
         if (device != nullptr) {
+            #ifdef DEBUG_COMMS
+            Debug.println();
+            #endif
+
             device->begin(0);
             print_revision(*device);
-            Debug.println();
-
             devices[num_devices++] = device;
         }
+        Debug.println();
     }
 
     for (int i = 0; i < num_devices; i++) {

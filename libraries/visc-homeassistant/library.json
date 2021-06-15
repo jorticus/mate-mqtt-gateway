@@ -1,0 +1,26 @@
+{
+    "name": "Visc HomeAssistant",
+    "keywords": "button, templates",
+    "description": "HomeAssistant component helper",
+    "authors": [
+        {
+            "name": "Jared Sanson",
+            "email": "jared@jared.geek.nz",
+            "url": "https://jared.geek.nz",
+            "maintainer": true
+        }
+    ],
+    "dependencies": [
+        {
+            "name": "ArduinoJson",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "PubSubClient",
+            "frameworks": "arduino"
+        }
+    ],
+    "version": "1.0.0",
+    "frameworks": "arduino",
+    "platforms": "*"
+}

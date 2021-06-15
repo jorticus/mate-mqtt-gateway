@@ -19,7 +19,8 @@ includes = [
 ]
 secrets_schema = [
     # Type,         Name,               Default,        String Literal
-    ('const char*', 'device_name',      '',             True),
+    ('const char*', 'device_name',      'mate',         True),
+    ('const char*', 'friendly_name',    'MATE Gateway', True),
     ('IPAddress',   'mqtt_server',      '{0,0,0,0}',    False),
     ('uint16_t',    'mqtt_port',        1883,           False),
     ('const char*', 'mqtt_username',    '',             True),

@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "main.h"
 #include "secrets.h"
+#include "hacomponent.h"
 
 #include <ESPmDNS.h>
 
@@ -96,23 +97,26 @@ void Mqtt::connect()
 
         // Attempt to connect
         bool connected = false;
-        // if (HAAvailabilityComponent::inst != nullptr)
-        // {
-        //     String will_topic 		= HAAvailabilityComponent::inst->getWillTopic();
-        //     const char* will_msg 	= HAAvailabilityComponent::OFFLINE;
-        //     uint8_t will_qos 		= 0;
-        //     bool will_retain 		= true;
+        if (HAAvailabilityComponent::inst != nullptr)
+        {
+            String will_topic       = HAAvailabilityComponent::inst->getWillTopic();
+            const char* will_msg    = HAAvailabilityComponent::OFFLINE;
+            uint8_t will_qos        = 0;
+            bool will_retain        = true;
 
-        //     Debug.print("Last will: ");
-        //     Debug.print(will_topic);
-        //     Debug.print(" = ");
-        //     Debug.println(will_msg);
+            Debug.print("Last will: ");
+            Debug.print(will_topic);
+            Debug.print(" = ");
+            Debug.println(will_msg);
 
-        //     connected = client.connect(
-        //         config.device_name, config.m_mqtt_user, config.m_mqtt_password, 
-        //         will_topic.c_str(), will_qos, will_retain, will_msg);
-        // }
-        // else
+            connected = client.connect(
+                secrets::device_name,
+                secrets::mqtt_username,
+                secrets::mqtt_password,
+                will_topic.c_str(), will_qos, will_retain, will_msg
+            );
+        }
+        else
         {
             connected = client.connect(
                 secrets::device_name,

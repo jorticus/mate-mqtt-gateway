@@ -4,6 +4,7 @@
 #include <ArduinoOTA.h>
 #include <Serial9b.h>
 #include <SoftwareSerial.h>
+#include <hacomponent.h>
 
 #include "secrets.h"
 #include "mate.h"
@@ -22,8 +23,10 @@ boolean g_failsafe = false;
 // so we are forced to use a software serial implementation.
 SoftwareSerial Serial9b;
 
-WiFiClient wifi;
-PubSubClient Mqtt::client(wifi);
+WiFiClient                  wifi;
+PubSubClient                Mqtt::client(wifi);
+ComponentContext            Mqtt::context(Mqtt::client);
+HAAvailabilityComponent     availability(Mqtt::context);
 
 #define MATE_TX (19)
 #define MATE_RX (23)
@@ -92,6 +95,12 @@ void connectWiFi()
     Debug.println(WiFi.localIP());
 }
 
+void publish() {
+    // Publish entities to Home-Assistant
+    availability.PublishConfig();
+    availability.Connect();
+}
+
 void setup()
 {
     // // Debugging
@@ -120,7 +129,7 @@ void setup()
     Debug.println(ESP.getSdkVersion());
 
     Debug.print("Name:       ");
-    Debug.println(secrets::device_name);
+    Debug.println(secrets::friendly_name);
 
     Debug.print("MAC:        ");
     Debug.println(WiFi.macAddress());
@@ -135,9 +144,24 @@ void setup()
     //     g_failsafe = true;
     // }
 
+/// Initialization ///
+
     Serial9b.begin(9600, MATE_RX, MATE_TX, SWSERIAL_9N1, false);
     Serial9b.enableRx(true);
     Serial9b.enableTx(true);
+
+    // Copy config to the MQTT context
+    Mqtt::context.device_name   = secrets::device_name;
+    Mqtt::context.friendly_name = secrets::friendly_name;
+    Mqtt::context.fw_version    = GEN_BUILD_VERSION;
+    Mqtt::context.manufacturer  = "ViscTronics";
+    Mqtt::context.model         = "ESP-MATE Gateway";
+
+    // Initialize all HA components
+    // IMPORTANT: Mqtt::context must be initialized first!
+    HACompItem::InitializeAll();
+
+/// Initialization done, connect to network ///
 
     // Connect to WiFi (blocks until connection formed)
     connectWiFi();
@@ -145,9 +169,12 @@ void setup()
     // Connect to MQTT (blocks until connection formed)
     Mqtt::setup(secrets::mqtt_server, secrets::mqtt_port);
     Mqtt::connect();
-    //Mqtt::autodetectSetup();
+
+    publish();
 
     Debug.println();
+
+/// Connected to network, set up devices ///
 
     // Discover MATE devices
     MateAggregator::setup();
@@ -159,12 +186,14 @@ void idle_loop() {
     yield();
 }
 
-
 void loop() {
     //telnet.handle();
     ArduinoOTA.handle();
 
-    Mqtt::process();
+    bool reconnected = Mqtt::process();
+    if (reconnected) {
+        publish(); // Re-publish entity config
+    }
 
     if (WiFi.status() != WL_CONNECTED) {
         Debug.println("Disconnected from WiFi");
