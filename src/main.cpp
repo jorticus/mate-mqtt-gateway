@@ -5,7 +5,9 @@
 #include <Serial9b.h>
 #include <SoftwareSerial.h>
 
+#include "secrets.h"
 #include "mate.h"
+#include "mqtt.h"
 
 // Debugging is available at port 23 (raw connection)
 //static TelnetSpy telnet;
@@ -20,16 +22,78 @@ boolean g_failsafe = false;
 // so we are forced to use a software serial implementation.
 SoftwareSerial Serial9b;
 
+WiFiClient wifi;
+PubSubClient Mqtt::client(wifi);
+
 #define MATE_TX (19)
 #define MATE_RX (23)
 
 
-void fault() {
+void fault()
+{
     Debug.println("HALTED.");
     while (true) { }
 }
 
-void setup() {
+
+void printWiFiStatus(wl_status_t status) {
+    switch (status) {
+        case WL_CONNECTED:
+            Debug.println("Connected!");
+            break;
+        case WL_NO_SSID_AVAIL:
+            // Bad SSID or AP not present
+            Debug.println("No SSID Available");
+            break;
+        case WL_CONNECT_FAILED:
+            // Bad password
+            Debug.println("Failed to connect");
+            break;
+        case WL_IDLE_STATUS:
+            Debug.println("Station Idle");
+            break;
+        case WL_CONNECTION_LOST:
+            Debug.println("Connection lost");
+            break;
+        default:
+            Debug.println(status, HEX);
+    }
+}
+
+
+void connectWiFi()
+{
+    wl_status_t result;
+
+    WiFi.persistent(false);
+
+    while (WiFi.status() != WL_CONNECTED) {
+        Debug.println();
+
+        WiFi.mode(WIFI_STA);
+        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+        WiFi.setHostname(secrets::device_name);
+        WiFi.begin(secrets::wifi_ssid, secrets::wifi_pw);
+        Debug.print("Connecting to SSID: "); Debug.println(secrets::wifi_ssid);
+
+        result = (wl_status_t)WiFi.waitForConnectResult();
+        if (result != WL_CONNECTED) {
+            Debug.print("Error connecting: "); printWiFiStatus(result);
+
+            Debug.println("Diagnostics:");
+            WiFi.printDiag(Serial);
+            Debug.println();
+
+            delay(1000);
+        }
+    }
+
+    Debug.print("IP address: ");
+    Debug.println(WiFi.localIP());
+}
+
+void setup()
+{
     // // Debugging
     // telnet.setWelcomeMsg("Connected!");
     // telnet.setCallbackOnConnect([] {
@@ -46,8 +110,6 @@ void setup() {
 
     Debug.println();
 
-    Debug.println("Booting");
-
     Debug.print("FW Version: ");
     Debug.println(GEN_BUILD_VERSION);
 
@@ -57,8 +119,11 @@ void setup() {
     Debug.print("SDK:        ");
     Debug.println(ESP.getSdkVersion());
 
-    //Debug.print("Chip ID:    0x");
-    //Debug.println(ESP.getChipId(), HEX);
+    Debug.print("Name:       ");
+    Debug.println(secrets::device_name);
+
+    Debug.print("MAC:        ");
+    Debug.println(WiFi.macAddress());
 
     // TODO: Equivalent for ESP32?
     // // Detect if previous reset was due to an Exception,
@@ -70,13 +135,21 @@ void setup() {
     //     g_failsafe = true;
     // }
 
-
     Serial9b.begin(9600, MATE_RX, MATE_TX, SWSERIAL_9N1, false);
     Serial9b.enableRx(true);
     Serial9b.enableTx(true);
 
+    // Connect to WiFi (blocks until connection formed)
+    connectWiFi();
+
+    // Connect to MQTT (blocks until connection formed)
+    Mqtt::setup(secrets::mqtt_server, secrets::mqtt_port);
+    Mqtt::connect();
+    //Mqtt::autodetectSetup();
+
     Debug.println();
 
+    // Discover MATE devices
     MateAggregator::setup();
 }
 
@@ -91,6 +164,13 @@ void loop() {
     //telnet.handle();
     ArduinoOTA.handle();
 
+    Mqtt::process();
+
+    if (WiFi.status() != WL_CONNECTED) {
+        Debug.println("Disconnected from WiFi");
+        connectWiFi();
+    }
+
     MateAggregator::loop();
 
     //if (!OTA::is_updating && !g_failsafe) {
@@ -100,4 +180,6 @@ void loop() {
     //   SetAppStatus(AppStatus::Sensing);
     //   }
     //}
+
+
 }
