@@ -12,18 +12,25 @@ Import("env")
 secrets_source_file = 'secrets.json'
 secrets_header_dest = 'src/secrets.h'
 gitignore_file      = '.gitignore'
+
+includes = [
+    '#include <stdint.h>',
+    '#include <IPAddress.h>'
+]
 secrets_schema = [
-    # Type,         Name,               Default
-    ('const char*', 'device_name',      ''),
-    ('const char*', 'mqtt_username',    ''),
-    ('const char*', 'mqtt_password',    ''),
-    ('uint16_t',    'mqtt_port',        1883),
-    ('const char*', 'wifi_ssid',        ''),
-    ('const char*', 'wifi_pw',          ''),
+    # Type,         Name,               Default,        String Literal
+    ('const char*', 'device_name',      '',             True),
+    ('IPAddress',   'mqtt_server',      '{0,0,0,0}',    False),
+    ('uint16_t',    'mqtt_port',        1883,           False),
+    ('const char*', 'mqtt_username',    '',             True),
+    ('const char*', 'mqtt_password',    '',             True),
+    ('const char*', 'wifi_ssid',        '',             True),
+    ('const char*', 'wifi_pw',          '',             True),
 ]
 
 import json
 import re
+import os.path
 from typing import Type
 from SCons.Script import Import, SConscript, Builder, AlwaysBuild, Action
 
@@ -39,7 +46,7 @@ def generate_template(source, target, env):
     # Create blank JSON if not exists
     if not src.exists():
         with open(src.get_path(), 'wb') as f:
-            for type,name,default in secrets_schema:
+            for type,name,default,enctype in secrets_schema:
                 secrets[name] = default
             f.write(bytes(json.dumps(secrets, indent=4), 'utf-8'))
 
@@ -52,13 +59,13 @@ def load_secrets():
             raise TypeError(f'{secrets_source_file} must be a dict')
 
         # Validate schema
-        for type,name,default in secrets_schema:
+        for type,name,default,enctype in secrets_schema:
             if name not in secrets:
                 raise ValueError(f'{secrets_source_file} expects key {name}')
 
     secrets_types = {}
-    for type,name,default in secrets_schema:
-        secrets_types[name] = type
+    for type,name,default,enctype in secrets_schema:
+        secrets_types[name] = (type, enctype)
 
     return (secrets, secrets_types)
 
@@ -70,23 +77,26 @@ def generate_secrets(source, target, env):
 
     c_lines = []
     c_lines.append(f'// Automatically generated from {secrets_source_file}')
-    c_lines.append('#include <stdint.h>')
+    for inc in includes:
+        c_lines.append(inc)
     c_lines.append('')
     c_lines.append('namespace secrets {')
 
     h_lines = []
     h_lines.append(f'// Automatically generated from {secrets_source_file}')
     h_lines.append('#pragma once')
-    h_lines.append('#include <stdint.h>')
+    for inc in includes:
+        h_lines.append(inc)
     h_lines.append('')
     h_lines.append('namespace secrets {')
 
     for name, value in secrets.items():
         #print(f'{name}={value}')
 
-        type = secrets_types.get(name, None)
+        type, enctype = secrets_types.get(name, None)
         if name and type:
-            if isinstance(value, str):
+            #if isinstance(value, str):
+            if enctype:
                 value = '"' + value.replace('"', '\"') + '"'
 
             c_lines.append(f'    {type} {name} = {value};')
@@ -129,11 +139,13 @@ target_obj = target_c + '.o'
 env.Object(target=target_obj, source=target_c)
 
 # Generate secrets.json from template if not present
-env.Command(
-    target=[secrets_source_file], 
-    source=[], 
-    action=env.VerboseAction(generate_template, "Generate Default Secrets")
-)
+if not os.path.exists(secrets_source_file):
+    env.Command(
+        target=[secrets_source_file], 
+        source=[], 
+        action=env.VerboseAction(generate_template, "Generate Default Secrets")
+    )
+env.NoClean(secrets_source_file)
 
 # Generate secrets.cpp / secrets.h from secrets.json
 env.Command(
