@@ -3,8 +3,10 @@
 #include <Serial9b.h>
 #include <SoftwareSerial.h>
 
+#include "mqtt.h"
 #include "debug.h"
 #include "allocator.h"
+#include "mate-collector.h"
 
 //#define DEBUG_COMMS
 
@@ -16,13 +18,17 @@ MateControllerProtocol mate_bus(Serial9b, &Debug);
 MateControllerProtocol mate_bus(Serial9b);
 #endif
 
+extern MatePubContext mate_context;
+
 // Functional devices found on the bus (excludes the hub)
 std::array<MateControllerDevice*, NUM_MATE_PORTS> devices;
+std::array<MateCollector*, NUM_MATE_PORTS> collectors;
 size_t num_devices = 0;
 
 // Set up a fixed size pool for allocating MateControllerDevice instances.
 // This avoids malloc()
 fixed_pool_allocator<MateControllerDevice, NUM_MATE_PORTS> device_pool;
+fixed_pool_allocator<MateCollector, NUM_MATE_PORTS> collector_pool;
 
 const char* dtypes[] = {
     "None",
@@ -50,6 +56,31 @@ void print_revision(MateControllerDevice& device)
     Debug.print(rev.c); Debug.print(")");
 }
 
+void create_device(int port, DeviceType dtype)
+{
+    Debug.print(port);
+    Debug.print(": ");
+    print_dtype(dtype);
+    
+    MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
+    if (device != nullptr) {
+        MateCollector* collector = new(collector_pool) MateCollector(*device, mate_context);
+        if (collector != nullptr) {
+            #ifdef DEBUG_COMMS
+            Debug.println();
+            #endif
+
+            if (device->begin(port)) {
+                print_revision(*device);
+                devices[num_devices] = device;
+                collectors[num_devices] = collector;
+                num_devices++;
+            }
+        } 
+    }
+    Debug.println();
+}
+
 // Scan the MateNET bus for new devices.
 void scan()
 {
@@ -67,7 +98,7 @@ void scan()
     // If nothing responds to this, we don't have a valid network
     dtype = mate_bus.scan(0);
     if (dtype == DeviceType::None) {
-        Debug.println("No devices found!");
+        Debug.println("ERROR: No devices found!");
         return;
     }
 
@@ -80,49 +111,24 @@ void scan()
         for (int i = 1; i < NUM_MATE_PORTS; i++) {
             dtype = mate_bus.scan(i);
             if (dtype != DeviceType::None) {
-                Debug.print(i);
-                Debug.print(": ");
-                print_dtype(dtype);
-
-                // Allocate a new device instance using our fixed pool.
-                // These will not be deallocated until scan() is run again.
-                MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
-                if (device != nullptr) {
-                    #ifdef DEBUG_COMMS
-                    Debug.println();
-                    #endif
-
-                    device->begin(i);
-                    print_revision(*device);
-
-                    devices[num_devices++] = device;
-                }
-                Debug.println();
+                create_device(i, dtype);
             }
         }
     }
-
     // If port 0 is not a hub, then there can only be one device on the network.
     else {
-        Debug.print(0);
-        Debug.print(": ");
-        print_dtype(dtype);
-        
-        MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
-        if (device != nullptr) {
-            #ifdef DEBUG_COMMS
-            Debug.println();
-            #endif
+        create_device(0, dtype);
+    }
 
-            device->begin(0);
-            print_revision(*device);
-            devices[num_devices++] = device;
-        }
-        Debug.println();
+    if (num_devices == 0) {
+        Debug.println("ERROR: No devices created!");
+        return;
     }
 
     for (int i = 0; i < num_devices; i++) {
-        //MateControllerDevice& device = devices[i];
+        auto collector = collectors[i];
+        assert(collector != nullptr);
+        collector->publish();
     }
 }
 
@@ -137,9 +143,12 @@ void loop()
 {
     // TODO: Periodically query status from each attached device
 
-    if (num_devices > 0)
-    {
-
+    if (num_devices > 0) {
+        for (int i = 0; i < num_devices; i++) {
+            auto collector = collectors[i];
+            assert(collector != nullptr);
+            collector->process();
+        }
     }
 
 }

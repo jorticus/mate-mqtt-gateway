@@ -9,6 +9,7 @@
 #include "secrets.h"
 #include "mate.h"
 #include "mqtt.h"
+#include "mate-collector.h"
 
 // Debugging is available at port 23 (raw connection)
 //static TelnetSpy telnet;
@@ -27,6 +28,7 @@ WiFiClient                  wifi;
 PubSubClient                Mqtt::client(wifi);
 ComponentContext            Mqtt::context(Mqtt::client);
 HAAvailabilityComponent     availability(Mqtt::context);
+MatePubContext              mate_context(Mqtt::client);
 
 #define MATE_TX (19)
 #define MATE_RX (23)
@@ -157,6 +159,9 @@ void setup()
     Mqtt::context.manufacturer  = "ViscTronics";
     Mqtt::context.model         = "ESP-MATE Gateway";
 
+    mate_context.device_name    = secrets::device_name;
+    mate_context.prefix         = secrets::device_name; // MQTT topic prefix for publishing MATE data
+
     // Initialize all HA components
     // IMPORTANT: Mqtt::context must be initialized first!
     HACompItem::InitializeAll();
@@ -211,4 +216,26 @@ void loop() {
     //}
 
 
+}
+
+void __assert(const char * a, int b, const char * c) {
+    Debug.println("ASSERT");
+    Debug.println(a);
+    Debug.println(b);
+    Debug.println(c);
+    fault();
+    while(true) { }
+}
+
+void __assert_func(const char * src_path, int line_no, const char * func_name, const char * expression) {
+    // ASSERT: collector != nullptr (in src\mate.cpp:128)
+    Debug.print("ASSERT: ");
+    Debug.print(expression);
+    Debug.print(" (in ");
+    Debug.print(src_path);
+    Debug.print(":");
+    Debug.print(line_no);
+    Debug.println(")");
+    fault();
+    while(true) { }
 }
