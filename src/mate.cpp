@@ -30,6 +30,7 @@ size_t num_devices = 0;
 fixed_pool_allocator<MateControllerDevice, NUM_MATE_PORTS> device_pool;
 fixed_pool_allocator<MateCollector, NUM_MATE_PORTS> collector_pool;
 
+extern const char* dtype_strings[];
 const char* dtypes[] = {
     "None",
     "Hub",
@@ -79,6 +80,30 @@ void create_device(int port, DeviceType dtype)
         } 
     }
     Debug.println();
+}
+
+void clearPublishedDevices()
+{
+#if 0
+    // TODO: To do this properly, we really need to subscribe to all topics
+    // so we have a list of retained devices, then unpublish each individually.
+    // If we just blindly publish a 0-byte payload, any topics that don't exist
+    // will be created (un-retained). Unsure if this is a bug in my broker.
+    for (int dtype = DeviceType::Fx; dtype < DeviceType::MaxDevices; dtype++) {
+        for (int i = 1; i <= 3; i++) {
+            char topic[40];
+            snprintf(topic, sizeof(topic), "%s/%s-%d/status", 
+                mate_context.prefix,
+                dtype_strings[dtype],
+                i
+            );
+
+            Debug.print("Unpublish ");
+            Debug.println(topic);
+            mate_context.client.publish(topic, nullptr, 0, true);
+        }
+    }
+#endif
 }
 
 // Scan the MateNET bus for new devices.
@@ -136,6 +161,7 @@ namespace MateAggregator {
 
 void setup()
 {
+    clearPublishedDevices();
     scan();
 }
 

@@ -54,11 +54,11 @@ void MateCollector::publishInfo()
     char payload[MQTT_MAX_PACKET_SIZE];
 
     snprintf(payload, sizeof(payload), "%d", dev.port());
-    publishTopic("port", payload);
+    publishTopic("port", payload, true); // Retained
 
     auto rev = dev.get_revision();
     snprintf(payload, sizeof(payload), "%d.%d.%d", rev.a, rev.b, rev.c);
-    publishTopic("rev", payload);
+    publishTopic("rev", payload, true); // Retained
 
     ping(true);
 
@@ -68,7 +68,7 @@ void MateCollector::publishInfo()
     // ...
 }
 
-void MateCollector::publishTopic(const char* topic_suffix, const char* payload)
+void MateCollector::publishTopic(const char* topic_suffix, const char* payload, bool retained)
 {
     char topic[MAX_TOPIC_LEN];
     snprintf(topic, sizeof(topic), "%s/%s", m_prefix, topic_suffix);
@@ -77,7 +77,7 @@ void MateCollector::publishTopic(const char* topic_suffix, const char* payload)
     Debug.print(topic);
     Debug.println();
 
-    client.publish(topic, payload);
+    client.publish(topic, payload, retained);
 }
 
 void MateCollector::ping(bool initial_publish)
@@ -89,10 +89,10 @@ void MateCollector::ping(bool initial_publish)
         this->is_connected = is_still_connected;
         if (!is_still_connected) {
             Debug.println("Device disconnected");
-            publishTopic("status", "offline");
+            publishTopic("status", "offline", true); // Retained
         } else {
             Debug.println("Device connected");
-            publishTopic("status", "online");
+            publishTopic("status", "online", true); // Retained
         }
     }
 }

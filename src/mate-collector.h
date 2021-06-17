@@ -40,7 +40,7 @@ public:
 protected:
     void initialize();
 
-    void publishTopic(const char* topic_suffix, const char* payload);
+    void publishTopic(const char* topic_suffix, const char* payload, bool retained);
 
     void ping(bool initial_publish);
 
