@@ -128,7 +128,7 @@ void scan()
     for (int i = 0; i < num_devices; i++) {
         auto collector = collectors[i];
         assert(collector != nullptr);
-        collector->publish();
+        collector->publishInfo();
     }
 }
 

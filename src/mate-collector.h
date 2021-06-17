@@ -25,75 +25,24 @@ public:
         , context(context)
         , client(context.client)
         , m_deviceCounts{0}
+        , is_connected(false)
     {
-        // TODO: Make static in class
-        const char* dtypes[] = {
-            nullptr,
-            "hub",
-            "fx",
-            "mx",
-            "dc"
-        };
-
-        DeviceType dtype = dev.deviceType();
-        if (dtype >= DeviceType::MaxDevices)
-            return;
-
-        m_deviceCounts[dtype]++;
-
-        snprintf(m_prefix, sizeof(m_prefix), "%s/%s-%d", context.prefix, dtypes[dtype], m_deviceCounts[dtype]);
+        initialize();
     }
 
-    void publish() {
-        // Publish to topic:
-        // mate/status [connected/disconnected]
-        // mate/mx-1/rev    [Revision:a.b.c]
-        // mate/mx-1/raw    [raw data]
-        // mate/mx-1/ts     [timestamp of last data read]
-        // mate/mx-1/port   [0-9]
+    static MateCollector* make_collector(DeviceType dtype);
 
-        char payload[MQTT_MAX_PACKET_SIZE];
+    void publishInfo();
 
-        auto rev = dev.get_revision();
-        snprintf(payload, sizeof(payload), "%d.%d.%d", rev.a, rev.b, rev.c);
-        publish_mqtt("rev", payload);
-
-        snprintf(payload, sizeof(payload), "%d", dev.port());
-        publish_mqtt("port", payload);
-
-        // Future: (HAComponent)
-        // mate/mx-1/sensor/bat_voltage
-        // mate/mx-1/sensor/bat_current
-        // ...
-    }
-
-
-    void process() {
-
-
-        //client.publish()
-    }
+    virtual void process()
+    { }
 
 protected:
-    void publish_mqtt(const char* topic_suffix, const char* payload) {
-        char topic[MAX_TOPIC_LEN];
-        snprintf(topic, sizeof(topic), "%s/%s", m_prefix, topic_suffix);
+    void initialize();
 
-        Debug.print("Publish: ");
-        Debug.print(topic);
-        Debug.println();
+    void publishTopic(const char* topic_suffix, const char* payload);
 
-        client.publish(topic, payload);
-    }
-
-    void connect() {
-
-    }
-
-    void ping() {
-        // Check if device is still responding
-        // If not, update status topic (disconnected).
-    }
+    void ping(bool initial_publish);
 
 protected:
     MateControllerDevice& dev;
@@ -102,4 +51,5 @@ protected:
 
     char m_prefix[MAX_TOPIC_LEN];
     std::array<uint8_t, (size_t)DeviceType::MaxDevices> m_deviceCounts;
+    bool is_connected;
 };
