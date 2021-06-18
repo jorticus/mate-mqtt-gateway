@@ -1,19 +1,10 @@
+#include <type_traits>
 #include "mate-collector.h"
 #include "debug.h"
 
-class MxCollector : public MateCollector
-{
-public:
-    MxCollector(MateControllerDevice& dev, MatePubContext& context)
-        : MateCollector(dev, context)
-    { }
+//static_assert(sizeof(MxCollector) <= sizeof(MateCollector), "sizeof(MxCollector) must be the same as parent class MateCollector");
 
-    void process() override
-    {
-
-    }
-};
-
+// Used to form topic based on device type
 const char* dtype_strings[] = {
     nullptr,
     "hub",
@@ -29,17 +20,8 @@ void MateCollector::initialize()
 
     m_deviceCounts[dtype]++;
 
+    // Eg. 'mate/mx-1'
     snprintf(m_prefix, sizeof(m_prefix), "%s/%s-%d", context.prefix, dtype_strings[dtype], m_deviceCounts[dtype]);
-}
-
-MateCollector* MateCollector::make_collector(DeviceType dtype)
-{
-    switch (dtype) {
-        case DeviceType::Mx: return nullptr;
-        case DeviceType::Fx: return nullptr;
-        case DeviceType::Dc: return nullptr;
-        default: return nullptr;
-    }
 }
 
 void MateCollector::publishInfo()
@@ -78,6 +60,18 @@ void MateCollector::publishTopic(const char* topic_suffix, const char* payload, 
     Debug.println();
 
     client.publish(topic, payload, retained);
+}
+
+void MateCollector::publishTopic(const char* topic_suffix, const uint8_t* payload, size_t payload_size, bool retained)
+{
+    char topic[MAX_TOPIC_LEN];
+    snprintf(topic, sizeof(topic), "%s/%s", m_prefix, topic_suffix);
+
+    Debug.print("Publish: ");
+    Debug.print(topic);
+    Debug.println();
+
+    client.publish(topic, payload, payload_size, retained);
 }
 
 void MateCollector::ping(bool initial_publish)

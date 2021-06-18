@@ -8,7 +8,7 @@
 #include "allocator.h"
 #include "mate-collector.h"
 
-//#define DEBUG_COMMS
+#define DEBUG_COMMS
 
 // MATEnet bus is connected to a software serial port (9-bit)
 extern SoftwareSerial Serial9b; // main.cpp
@@ -28,7 +28,7 @@ size_t num_devices = 0;
 // Set up a fixed size pool for allocating MateControllerDevice instances.
 // This avoids malloc()
 fixed_pool_allocator<MateControllerDevice, NUM_MATE_PORTS> device_pool;
-fixed_pool_allocator<MateCollector, NUM_MATE_PORTS> collector_pool;
+fixed_pool_allocator<MateCollectorContainer, NUM_MATE_PORTS> collector_pool;
 
 extern const char* dtype_strings[];
 const char* dtypes[] = {
@@ -63,14 +63,26 @@ void create_device(int port, DeviceType dtype)
     Debug.print(": ");
     print_dtype(dtype);
     
+    // Create a device object for interacting with the device type
     MateControllerDevice* device = new(device_pool) MateControllerDevice(mate_bus, dtype);
     if (device != nullptr) {
-        MateCollector* collector = new(collector_pool) MateCollector(*device, mate_context);
+
+        // Create an appropriate wrapper class for the device type
+        MateCollector* collector = nullptr;
+        switch (dtype) {
+            case DeviceType::Mx: collector = new (collector_pool) MxCollector(*device, mate_context); break;
+            case DeviceType::Fx: collector = new (collector_pool) FxCollector(*device, mate_context); break;
+            case DeviceType::Dc: collector = new (collector_pool) DcCollector(*device, mate_context); break;
+            default: break;
+        }
+        //MateCollector* collector = new(collector_pool) MateCollector(*device, mate_context);
+
         if (collector != nullptr) {
             #ifdef DEBUG_COMMS
             Debug.println();
             #endif
 
+            // Check that we can communicate and add it to our list
             if (device->begin(port)) {
                 print_revision(*device);
                 devices[num_devices] = device;
@@ -150,6 +162,7 @@ void scan()
         return;
     }
 
+    // Publish initial (retained) info to MQTT, such as device revision & port
     for (int i = 0; i < num_devices; i++) {
         auto collector = collectors[i];
         assert(collector != nullptr);
@@ -170,10 +183,12 @@ void loop()
     // TODO: Periodically query status from each attached device
 
     if (num_devices > 0) {
+        uint32_t now = static_cast<uint32_t>(millis());
+
         for (int i = 0; i < num_devices; i++) {
             auto collector = collectors[i];
             assert(collector != nullptr);
-            collector->process();
+            collector->process(now);
         }
     }
 
