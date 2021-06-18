@@ -2,6 +2,7 @@
 
 #include <PubSubClient.h>
 #include <uMate.h>
+#include <time.h>
 
 #include "debug.h"
 
@@ -87,8 +88,10 @@ protected:
 
     void publishLog(uint32_t now, uint8_t* log, size_t size);
 
+    void setNextLogpage(struct tm* currTime);
+
     static const uint32_t statusIntervalMs = 10000; //ms
-    static const uint32_t logIntervalMs = 30000;// 60*60*1000; // 1 hour TODO
+    static const uint32_t logIntervalMs = 60000; // 1min
     uint32_t tPrevStatus;
     uint32_t tPrevLog;
     struct tm nextLogpageTime;

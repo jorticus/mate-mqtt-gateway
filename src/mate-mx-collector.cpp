@@ -4,7 +4,9 @@ void MxCollector::process(uint32_t now)
 { 
     // Rollover-safe timestamp check
     if ((now - tPrevStatus) >= statusIntervalMs) {
-        Debug.println("Collect Status");
+        tPrevStatus = now;
+
+        Debug.println("Collect MX Status");
 
         uint8_t status[STATUS_RESP_SIZE];
         if (dev.read_status(status, sizeof(status))) {
@@ -16,13 +18,56 @@ void MxCollector::process(uint32_t now)
 
             publishStatus(now, status, sizeof(status));
         }
-
-        tPrevStatus = now;
-        Debug.print("ts:");
-        Debug.println(now);
     }
 
+    if ((now - tPrevLog) >= logIntervalMs) {
+        tPrevLog = now;
+
+        struct tm currTime;
+        if (getLocalTime(&currTime)) {
+            Serial.println(&currTime, "Time: %Y-%m-%d %H:%M:%S");
+
+            // Next logpage timestamp not yet set, use current time
+            if (nextLogpageTime.tm_year == 0) {
+                setNextLogpage(&currTime);
+                nextLogpageTime.tm_mday -= 1; // Force collection on first run
+            }
+
+            if ((currTime.tm_year >= nextLogpageTime.tm_year) &&
+                (currTime.tm_mon >= nextLogpageTime.tm_mon) &&
+                (currTime.tm_mday >= nextLogpageTime.tm_mday) &&
+                (currTime.tm_hour >= nextLogpageTime.tm_hour) &&
+                (currTime.tm_min >= nextLogpageTime.tm_min))
+            {
+                Debug.println("Collect MX Logpage");
+
+                uint8_t logpage[LOG_RESP_SIZE];
+                if (dev.read_log(logpage, sizeof(logpage))) {
+                    publishLog(now, logpage, sizeof(logpage));
+                }
+
+                setNextLogpage(&currTime);
+                nextLogpageTime.tm_mday += 1;
+            }
+        }
+    }
+        
     // TODO: Retrieve logpage
+}
+
+void MxCollector::setNextLogpage(struct tm* currTime)
+{
+    nextLogpageTime = *currTime;
+
+    // Tomorrow
+    nextLogpageTime.tm_mday += 1;
+
+    // 5 minutes past midnight
+    nextLogpageTime.tm_hour = 0;
+    nextLogpageTime.tm_min = 5;
+    nextLogpageTime.tm_sec = 0;
+
+    Serial.println(&nextLogpageTime, "Next Logpage: %Y-%m-%d %H:%M:%S");
 }
 
 void MxCollector::publishStatus(uint32_t now, uint8_t* status, size_t size)

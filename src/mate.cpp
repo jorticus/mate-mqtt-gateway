@@ -210,7 +210,7 @@ void synchronize()
                 if (dtype == DeviceType::Fx || dtype == DeviceType::Dc) {
                     if (bat_temp == 0) {
                         bat_temp = mx_master->query(0x4000);
-                        Debug.print( "Bat Temp: ");
+                        Debug.print("Bat Temp: ");
                         Debug.println(bat_temp);
                     }
                     device->update_battery_temperature(bat_temp);

@@ -4,19 +4,14 @@ void FxCollector::process(uint32_t now)
 { 
     // Rollover-safe timestamp check
     if ((now - tPrevStatus) >= statusIntervalMs) {
-        Debug.println("Collect Status");
+        tPrevStatus = now;
+        Debug.println("Collect FX Status");
 
         uint8_t status[STATUS_RESP_SIZE];
         if (dev.read_status(status, sizeof(status))) {
             publishStatus(now, status, sizeof(status));
         }
-
-        tPrevStatus = now;
-        Debug.print("ts:");
-        Debug.println(now);
     }
-
-    // TODO: Retrieve logpage
 }
 
 void FxCollector::publishStatus(uint32_t now, uint8_t* status, size_t size)

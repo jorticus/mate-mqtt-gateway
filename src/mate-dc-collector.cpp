@@ -4,7 +4,7 @@ void DcCollector::process(uint32_t now)
 { 
     // Rollover-safe timestamp check
     if ((now - tPrevStatus) >= statusIntervalMs) {
-        Debug.println("Collect Status");
+        Debug.println("Collect DC Status");
 
         uint8_t status[STATUS_RESP_SIZE * 6];
         uint8_t* curr_status = status;
