@@ -11,6 +11,8 @@
 #include "mqtt.h"
 #include "mate-collector.h"
 
+const char* ntpServer1 = "pool.ntp.org";
+
 // Debugging is available at port 23 (raw connection)
 //static TelnetSpy telnet;
 Stream& Debug = Serial;//telnet;
@@ -97,6 +99,21 @@ void connectWiFi()
     Debug.println(WiFi.localIP());
 }
 
+void connectNtp()
+{
+    configTime(0, 0, ntpServer1);
+
+    Debug.println("Current time (UTC):");
+
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+        Serial.println(&timeinfo, "%Y-%m-%d %H:%M:%S");
+    }
+    else {
+        Debug.println("<error>");
+    }
+}
+
 void publish() {
     // Publish entities to Home-Assistant
     availability.PublishConfig();
@@ -170,19 +187,24 @@ void setup()
 
     // Connect to WiFi (blocks until connection formed)
     connectWiFi();
+    Debug.println();
+
+    // Configure NTP server (GMT timezone)
+    connectNtp();
+    Debug.println();
 
     // Connect to MQTT (blocks until connection formed)
     Mqtt::setup(secrets::mqtt_server, secrets::mqtt_port);
     Mqtt::connect();
 
     publish();
-
     Debug.println();
 
 /// Connected to network, set up devices ///
 
     // Discover MATE devices
     MateAggregator::setup();
+    Debug.println();
 }
 
 void idle_loop() {
@@ -198,11 +220,13 @@ void loop() {
     bool reconnected = Mqtt::process();
     if (reconnected) {
         publish(); // Re-publish entity config
+        Debug.println();
     }
 
     if (WiFi.status() != WL_CONNECTED) {
         Debug.println("Disconnected from WiFi");
         connectWiFi();
+        Debug.println();
     }
 
     MateAggregator::loop();

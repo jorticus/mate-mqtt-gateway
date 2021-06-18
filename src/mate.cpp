@@ -8,7 +8,7 @@
 #include "allocator.h"
 #include "mate-collector.h"
 
-#define DEBUG_COMMS
+//#define DEBUG_COMMS
 
 // MATEnet bus is connected to a software serial port (9-bit)
 extern SoftwareSerial Serial9b; // main.cpp
@@ -23,12 +23,16 @@ extern MatePubContext mate_context;
 // Functional devices found on the bus (excludes the hub)
 std::array<MateControllerDevice*, NUM_MATE_PORTS> devices;
 std::array<MateCollector*, NUM_MATE_PORTS> collectors;
+MateControllerDevice* mx_master = nullptr;
 size_t num_devices = 0;
 
 // Set up a fixed size pool for allocating MateControllerDevice instances.
 // This avoids malloc()
 fixed_pool_allocator<MateControllerDevice, NUM_MATE_PORTS> device_pool;
 fixed_pool_allocator<MateCollectorContainer, NUM_MATE_PORTS> collector_pool;
+
+static uint32_t tPrevSync = 0;
+static const uint32_t syncIntervalMs = 60000; // Period to synchronize devices
 
 extern const char* dtype_strings[];
 const char* dtypes[] = {
@@ -88,6 +92,11 @@ void create_device(int port, DeviceType dtype)
                 devices[num_devices] = device;
                 collectors[num_devices] = collector;
                 num_devices++;
+
+                // First MX present is the master
+                if ((dtype == DeviceType::Mx) && (mx_master == nullptr)) {
+                    mx_master = device;
+                }
             }
         } 
     }
@@ -124,6 +133,7 @@ void scan()
     DeviceType dtype;
 
     num_devices = 0;
+    mx_master = nullptr;
     device_pool.deallocate_all(); // TODO: Call destructors
 
     // Force re-scan of bus.
@@ -170,6 +180,46 @@ void scan()
     }
 }
 
+void synchronize()
+{
+    struct tm timeinfo;
+    uint16_t bat_temp = 0;
+
+    if (mx_master != nullptr) {
+
+        Debug.println("Synchronize...");
+        
+        if (!getLocalTime(&timeinfo)) {
+            Debug.println("Sync: Error retrieving current time");
+            return; // Cannot synchronize.
+        }
+
+        Serial.println(&timeinfo, "Time: %Y-%m-%d %H:%M:%S");
+
+        for (int i = 0; i < num_devices; i++) {
+            auto device = devices[i];
+            if (device != mx_master) {
+                DeviceType dtype = device->deviceType();
+
+                // MX & DC devices want to know the current time for scheduling purposes
+                if (dtype == DeviceType::Mx || dtype == DeviceType::Dc) {
+                    device->update_time(&timeinfo);
+                }
+
+                // FX & DC devices want to know the battery temp reported by the MX master
+                if (dtype == DeviceType::Fx || dtype == DeviceType::Dc) {
+                    if (bat_temp == 0) {
+                        bat_temp = mx_master->query(0x4000);
+                        Debug.print( "Bat Temp: ");
+                        Debug.println(bat_temp);
+                    }
+                    device->update_battery_temperature(bat_temp);
+                }
+            }
+        }
+    }
+}
+
 namespace MateAggregator {
 
 void setup()
@@ -185,10 +235,17 @@ void loop()
     if (num_devices > 0) {
         uint32_t now = static_cast<uint32_t>(millis());
 
+        // Collect status / log information for each attached device
         for (int i = 0; i < num_devices; i++) {
             auto collector = collectors[i];
             assert(collector != nullptr);
             collector->process(now);
+        }
+
+        // Synchronize devices
+        if ((now - tPrevSync) >= syncIntervalMs) {
+            tPrevSync = now;
+            synchronize();
         }
     }
 

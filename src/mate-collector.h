@@ -35,6 +35,8 @@ public:
     virtual void process(uint32_t now)
     { }
 
+    MateControllerDevice& dev;
+
 protected:
     void initialize();
 
@@ -43,7 +45,6 @@ protected:
     void ping(bool initial_publish);
 
 protected:
-    MateControllerDevice& dev;
     MatePubContext& context;
     PubSubClient& client;
 
@@ -65,8 +66,8 @@ public:
 protected:
     void publishStatus(uint32_t now, uint8_t* status, size_t size);
 
-    static const uint statusIntervalMs = 5000; //ms
-    uint tPrevStatus;
+    static const uint32_t statusIntervalMs = 60000; //ms
+    uint32_t tPrevStatus;
 };
 
 class MxCollector : public MateCollector
@@ -75,6 +76,8 @@ public:
     MxCollector(MateControllerDevice& dev, MatePubContext& context)
         : MateCollector(dev, context)
         , tPrevStatus(0)
+        , tPrevLog(0)
+        , nextLogpageTime{0}
     { }
 
     void process(uint32_t now) override;
@@ -84,10 +87,11 @@ protected:
 
     void publishLog(uint32_t now, uint8_t* log, size_t size);
 
-    static const uint statusIntervalMs = 5000; //ms
-    //static const uint logIntervalMs = 0; 
-    uint tPrevStatus;
-    //uint tPrevLog;
+    static const uint32_t statusIntervalMs = 10000; //ms
+    static const uint32_t logIntervalMs = 30000;// 60*60*1000; // 1 hour TODO
+    uint32_t tPrevStatus;
+    uint32_t tPrevLog;
+    struct tm nextLogpageTime;
 };
 
 class DcCollector : public MateCollector
@@ -103,13 +107,13 @@ public:
 protected:
     void publishStatus(uint32_t now, uint8_t* status, size_t size);
 
-    static const uint statusIntervalMs = 5000; //ms
-    uint tPrevStatus;
+    static const uint32_t statusIntervalMs = 10000; //ms
+    uint32_t tPrevStatus;
 };
 
 // By inheriting from each class, we can figure out how much memory
 // would be required to allocate each one.
-class MateCollectorContainer : public MxCollector//, public MateCollector
+class MateCollectorContainer : public MxCollector, public FxCollector, public DcCollector//, public MateCollector
 {
 public:
 
@@ -117,6 +121,8 @@ private:
     MateCollectorContainer() = delete;
 };
 
-static_assert(sizeof(MateCollector) <= sizeof(MateCollectorContainer), "MxCollector size exceeds available container");
+static_assert(sizeof(MateCollector) <= sizeof(MateCollectorContainer), "MateCollector size exceeds available container");
 static_assert(sizeof(MxCollector) <= sizeof(MateCollectorContainer), "MxCollector size exceeds available container");
-//static_assert(sizeof(MateCollectorContainer) <= (sizeof(MxCollector) + sizeof(FxCollector)), "MateCollectorContainer size is larger than expected");
+static_assert(sizeof(FxCollector) <= sizeof(MateCollectorContainer), "FxCollector size exceeds available container");
+static_assert(sizeof(DcCollector) <= sizeof(MateCollectorContainer), "DcCollector size exceeds available container");
+static_assert(sizeof(MateCollectorContainer) <= (sizeof(MxCollector) + sizeof(FxCollector) + sizeof(DcCollector)), "MateCollectorContainer size is larger than expected");
