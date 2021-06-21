@@ -5,6 +5,7 @@
 #include <Serial9b.h>
 #include <SoftwareSerial.h>
 #include <hacomponent.h>
+#include <ETH.h>
 
 #include "secrets.h"
 #include "mate.h"
@@ -32,8 +33,13 @@ ComponentContext            Mqtt::context(Mqtt::client);
 HAAvailabilityComponent     availability(Mqtt::context);
 MatePubContext              mate_context(Mqtt::client);
 
-#define MATE_TX (19)
-#define MATE_RX (23)
+// TTGO-T1
+//#define MATE_TX (19)
+//#define MATE_RX (23)
+
+// WESP32
+#define MATE_TX (5)
+#define MATE_RX (18)
 
 
 void fault()
@@ -67,7 +73,7 @@ void printWiFiStatus(wl_status_t status) {
     }
 }
 
-
+#ifdef MODE_WIFI
 void connectWiFi()
 {
     wl_status_t result;
@@ -98,6 +104,30 @@ void connectWiFi()
     Debug.print("IP address: ");
     Debug.println(WiFi.localIP());
 }
+#endif
+
+#ifdef MODE_ETH
+void connectLan()
+{
+    Debug.println();
+    Debug.println("Connecting to LAN...");
+
+    //ETH.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    ETH.begin();
+    ETH.setHostname(secrets::device_name);
+
+    while (!ETH.linkUp())
+        continue;
+    while (static_cast<uint32_t>(ETH.localIP()) == 0)
+        continue;
+    
+    Debug.print("IP address: ");
+    Debug.println(ETH.localIP());
+
+    Debug.print("Gateway:    ");
+    Debug.println(ETH.gatewayIP());
+}
+#endif
 
 void connectNtp()
 {
@@ -168,6 +198,10 @@ void setup()
     Serial9b.begin(9600, MATE_RX, MATE_TX, SWSERIAL_9N1, false);
     Serial9b.enableRx(true);
     Serial9b.enableTx(true);
+    if (!Serial9b) {
+        Debug.println("ERROR: Invalid Serial9b Configuration");
+        fault();
+    }
 
     // Copy config to the MQTT context
     Mqtt::context.device_name   = secrets::device_name;
@@ -185,9 +219,15 @@ void setup()
 
 /// Initialization done, connect to network ///
 
-    // Connect to WiFi (blocks until connection formed)
+    // Connect to network (blocks until connection formed)
+#ifdef MODE_WIFI
     connectWiFi();
     Debug.println();
+#endif
+#ifdef MODE_ETH
+    connectLan();
+    Debug.println();
+#endif
 
     // Configure NTP server (GMT timezone)
     connectNtp();
@@ -214,20 +254,28 @@ void idle_loop() {
 }
 
 void loop() {
-    //telnet.handle();
-    ArduinoOTA.handle();
+#ifdef MODE_ETH
+    // Only process network tasks if ethernet is connected.
+    if (ETH.linkUp())
+#endif
+    {
+        //telnet.handle();
+        ArduinoOTA.handle();
 
-    bool reconnected = Mqtt::process();
-    if (reconnected) {
-        publish(); // Re-publish entity config
-        Debug.println();
+        bool reconnected = Mqtt::process();
+        if (reconnected) {
+            publish(); // Re-publish entity config
+            Debug.println();
+        }
     }
 
+#ifdef MODE_WIFI
     if (WiFi.status() != WL_CONNECTED) {
         Debug.println("Disconnected from WiFi");
         connectWiFi();
         Debug.println();
     }
+#endif
 
     MateAggregator::loop();
 
@@ -238,8 +286,6 @@ void loop() {
     //   SetAppStatus(AppStatus::Sensing);
     //   }
     //}
-
-
 }
 
 void __assert(const char * a, int b, const char * c) {
