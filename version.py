@@ -84,7 +84,6 @@ def get_git_desc():
         # Fall back to using the commit if tag not available
         return get_git_commit()
     except:
-        raise
         return None
 
 def generate_version(source, target, env):
