@@ -22,6 +22,7 @@ Stream& Debug = Serial;//telnet;
 extern const char* GEN_BUILD_VERSION;
 
 boolean g_failsafe = false;
+static boolean m_ota_initialized = false;
 
 // The ESP32 hardware UARTs unfortunately don't support 9-bit data,
 // so we are forced to use a software serial implementation.
@@ -45,7 +46,13 @@ MatePubContext              mate_context(Mqtt::client);
 void fault()
 {
     Debug.println("HALTED.");
-    while (true) { }
+    if (m_ota_initialized) {
+        while (true) {
+            ArduinoOTA.handle();
+        }
+    } else {
+        while (true) { }
+    }
 }
 
 
@@ -144,6 +151,72 @@ void connectNtp()
     }
 }
 
+void setupOTA()
+{
+    ArduinoOTA.setHostname(secrets::device_name);
+
+    ArduinoOTA.onStart([]() {
+        //is_updating = true;
+
+        // Set system to a safe state
+        //setup_platform();
+
+        //SetAppStatus(AppStatus::Programming);
+
+        Debug.println("OTA Initiated");
+        Debug.println("Flashing...");
+    });
+
+    ArduinoOTA.onEnd([]() {
+        Debug.println("\nOTA Done!");
+        //is_updating = false;
+
+        //Led::Clear();
+        //SetAppStatus(AppStatus::ProgrammingSuccess);
+        delay(1000);
+
+        // WARNING:
+        // OTA may hang here if you have just flashed via UART.
+        // To avoid this, please reset the ESP after flashing directly.
+    });
+
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        // static int last_x = 0;
+        // int x = (progress / (total / 20));
+        // if (x != last_x) {
+        // 	Debug.print("#");
+        // 	last_x = x;
+        // }
+        // if (progress == total) {
+        // 	Debug.println();
+        // }
+
+        //Led::SetProgress(Colors::Blue, (progress * 100) / total);
+    });
+
+    ArduinoOTA.onError([](ota_error_t error) {
+        Debug.println();
+        Debug.printf("Error[%u]: ", error);
+
+        //Led::Clear();
+        //SetAppStatus(AppStatus::Faulted);
+
+        if (error == OTA_AUTH_ERROR)            Debug.println("Auth Failed");
+        else if (error == OTA_BEGIN_ERROR)      Debug.println("Begin Failed");
+        else if (error == OTA_CONNECT_ERROR)    Debug.println("Connect Failed");
+        else if (error == OTA_RECEIVE_ERROR)    Debug.println("Receive Failed");
+        else if (error == OTA_END_ERROR)        Debug.println("End Failed");
+        //is_updating = false;
+
+        delay(1000);
+        ESP.restart();
+    });
+
+    // Enable OTA
+    ArduinoOTA.begin();
+    m_ota_initialized = true;
+}
+
 void publish() {
     // Publish entities to Home-Assistant
     availability.PublishConfig();
@@ -228,6 +301,8 @@ void setup()
     connectLan();
     Debug.println();
 #endif
+
+    setupOTA();
 
     // Configure NTP server (GMT timezone)
     connectNtp();
