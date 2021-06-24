@@ -1,5 +1,6 @@
 
 #include <Arduino.h>
+#include <WiFiClientSecure.h>
 //#include <TelnetSpy.h>
 #include <ArduinoOTA.h>
 #include <Serial9b.h>
@@ -28,8 +29,9 @@ static boolean m_ota_initialized = false;
 // so we are forced to use a software serial implementation.
 SoftwareSerial Serial9b;
 
-WiFiClient                  wifi;
-PubSubClient                Mqtt::client(wifi);
+//WiFiClient                  net;
+WiFiClientSecure            net;
+PubSubClient                Mqtt::client(net);
 ComponentContext            Mqtt::context(Mqtt::client);
 HAAvailabilityComponent     availability(Mqtt::context);
 MatePubContext              mate_context(Mqtt::client);
@@ -225,19 +227,7 @@ void publish() {
 
 void setup()
 {
-    // // Debugging
-    // telnet.setWelcomeMsg("Connected!");
-    // telnet.setCallbackOnConnect([] {
-    //     Serial.print("Telnet connected");
-    // });
-    // telnet.setCallbackOnDisconnect([] {
-    //     Serial.print("Telnet disconnected");
-    // });
-    // telnet.setDebugOutput(false);
-    // telnet.begin(serial_baud);
-
     Serial.begin(115200);
-    //Serial1.begin(115200);
 
     Debug.println();
 
@@ -255,16 +245,6 @@ void setup()
 
     Debug.print("MAC:        ");
     Debug.println(WiFi.macAddress());
-
-    // TODO: Equivalent for ESP32?
-    // // Detect if previous reset was due to an Exception,
-    // // so we can go into a failsafe mode with only WiFi + OTA.
-    // auto rst = ESP.getResetInfoPtr();
-    // if (rst->reason == 2) { // 2: EXCEPTION
-    //     Debug.println();
-    //     Debug.println("!! PREVIOUS RESET WAS CAUSED BY EXCEPTION !!");
-    //     g_failsafe = true;
-    // }
 
 /// Initialization ///
 
@@ -305,8 +285,13 @@ void setup()
     setupOTA();
 
     // Configure NTP server (GMT timezone)
+    // Required before we can validate SSL
     connectNtp();
     Debug.println();
+
+    // Set up SSL
+    net.setCACert(secrets::CA_ROOT_CRT);
+    //net.setInsecure();
 
     // Connect to MQTT (blocks until connection formed)
     Mqtt::setup(secrets::mqtt_server, secrets::mqtt_port);
@@ -353,14 +338,6 @@ void loop() {
 #endif
 
     MateAggregator::loop();
-
-    //if (!OTA::is_updating && !g_failsafe) {
-    //   bool reconnected = Mqtt::Process(config);
-    //   if (reconnected) {
-    //   publish();
-    //   SetAppStatus(AppStatus::Sensing);
-    //   }
-    //}
 }
 
 void __assert(const char * a, int b, const char * c) {

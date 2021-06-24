@@ -29,6 +29,10 @@ secrets_schema = [
     ('const char*', 'wifi_pw',          '',             True),
 ]
 
+# Not really a secret, but we can use this python script
+# to conveniently include the CA public certificate (PEM-encoded)
+ca_cert_include = 'ca.crt'
+
 import json
 import re
 import os.path
@@ -102,6 +106,16 @@ def generate_secrets(source, target, env):
 
             c_lines.append(f'    {type} {name} = {value};')
             h_lines.append(f'    extern {type} {name};');
+
+    # Add CA certificate
+    with open(ca_cert_include, 'r') as f:
+        cert_lines = f.readlines()
+        if cert_lines[0].strip() != '-----BEGIN CERTIFICATE-----':
+            raise Exception(f'Certificate {ca_cert_include} not PEM-encoded')
+        
+        cert = '\n'.join('    "%s"' % ln.strip() for ln in cert_lines)
+        c_lines.append(f'    const char* CA_ROOT_CRT = \n{cert};')
+        h_lines.append(f'    extern const char* CA_ROOT_CRT;')
 
     c_lines.append('}')
     h_lines.append('}')

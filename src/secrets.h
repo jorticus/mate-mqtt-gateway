@@ -12,4 +12,5 @@ namespace secrets {
     extern uint16_t mqtt_port;
     extern const char* wifi_ssid;
     extern const char* wifi_pw;
+    extern const char* CA_ROOT_CRT;
 }
