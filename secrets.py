@@ -9,6 +9,10 @@
 
 Import("env")
 
+TYPE_CONSTANT           = 1
+TYPE_STRING_LITERAL     = 2
+TYPE_PEM_CERTIFICATE    = 3
+
 secrets_source_file = 'secrets.json'
 secrets_header_dest = 'src/secrets.h'
 gitignore_file      = '.gitignore'
@@ -19,19 +23,19 @@ includes = [
 ]
 secrets_schema = [
     # Type,         Name,               Default,        String Literal
-    ('const char*', 'device_name',      'mate',         True),
-    ('const char*', 'friendly_name',    'MATE Gateway', True),
-    ('IPAddress',   'mqtt_server',      '{0,0,0,0}',    False),
-    ('uint16_t',    'mqtt_port',        1883,           False),
-    ('const char*', 'mqtt_username',    '',             True),
-    ('const char*', 'mqtt_password',    '',             True),
-    ('const char*', 'wifi_ssid',        '',             True),
-    ('const char*', 'wifi_pw',          '',             True),
+    ('const char*', 'device_name',      'mate',         TYPE_STRING_LITERAL),
+    ('const char*', 'friendly_name',    'MATE Gateway', TYPE_STRING_LITERAL),
+    #('IPAddress',   'mqtt_server',      '{0,0,0,0}',    TYPE_CONSTANT),
+    ('const char*', 'mqtt_server',      'example.com',  TYPE_STRING_LITERAL),
+    ('uint16_t',    'mqtt_port',        1883,           TYPE_CONSTANT),
+    ('const char*', 'mqtt_username',    '',             TYPE_STRING_LITERAL),
+    ('const char*', 'mqtt_password',    '',             TYPE_STRING_LITERAL),
+    ('const char*', 'wifi_ssid',        '',             TYPE_STRING_LITERAL),
+    ('const char*', 'wifi_pw',          '',             TYPE_STRING_LITERAL),
+    ('const char*', 'ca_root_cert',     '',             TYPE_PEM_CERTIFICATE),
 ]
 
-# Not really a secret, but we can use this python script
-# to conveniently include the CA public certificate (PEM-encoded)
-ca_cert_include = 'ca.crt'
+ca_cert_include = 'middle-earth-ca.crt'
 
 import json
 import re
@@ -100,22 +104,24 @@ def generate_secrets(source, target, env):
 
         type, enctype = secrets_types.get(name, None)
         if name and type:
+            if enctype == TYPE_PEM_CERTIFICATE:
+                # Add CA certificate
+                with open(value, 'r') as f:
+                    cert_lines = f.readlines()
+                    if cert_lines[0].strip() != '-----BEGIN CERTIFICATE-----':
+                        raise Exception(f'Certificate {value} not PEM-encoded')
+                    # Replace the value (filename) with the contents of the file, 
+                    # escaped as a string literal.
+                    value = '\n'.join('    "%s\\n"' % ln.strip() for ln in cert_lines)
+
             #if isinstance(value, str):
-            if enctype:
+            elif enctype == TYPE_STRING_LITERAL:
                 value = '"' + value.replace('"', '\"') + '"'
 
             c_lines.append(f'    {type} {name} = {value};')
             h_lines.append(f'    extern {type} {name};');
 
-    # Add CA certificate
-    with open(ca_cert_include, 'r') as f:
-        cert_lines = f.readlines()
-        if cert_lines[0].strip() != '-----BEGIN CERTIFICATE-----':
-            raise Exception(f'Certificate {ca_cert_include} not PEM-encoded')
-        
-        cert = '\n'.join('    "%s"' % ln.strip() for ln in cert_lines)
-        c_lines.append(f'    const char* CA_ROOT_CRT = \n{cert};')
-        h_lines.append(f'    extern const char* CA_ROOT_CRT;')
+
 
     c_lines.append('}')
     h_lines.append('}')

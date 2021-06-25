@@ -88,6 +88,18 @@ void Mqtt::setup(IPAddress addr, uint16_t port)
     client.setCallback(Mqtt::on_message_received);
 }
 
+void Mqtt::setup(const char* host, uint16_t port)
+{
+    Debug.print("MQTT Broker: ");
+    Debug.print(host);
+    Debug.print(":");
+    Debug.print(port);
+    Debug.println();
+
+    client.setServer(host, port);
+    client.setCallback(Mqtt::on_message_received);
+}
+
 void Mqtt::connect()
 {
     // Loop until we're reconnected

@@ -290,7 +290,7 @@ void setup()
     Debug.println();
 
     // Set up SSL
-    net.setCACert(secrets::CA_ROOT_CRT);
+    net.setCACert(secrets::ca_root_cert);
     //net.setInsecure();
 
     // Connect to MQTT (blocks until connection formed)
