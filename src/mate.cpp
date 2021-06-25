@@ -54,11 +54,13 @@ void print_dtype(DeviceType dtype) {
 
 void print_revision(MateControllerDevice& device)
 {
+#ifndef FAKE_MATE_DEVICES
     auto rev = device.get_revision();
     Debug.print("(Rev:");
     Debug.print(rev.a); Debug.print("."); 
     Debug.print(rev.b); Debug.print(".");
     Debug.print(rev.c); Debug.print(")");
+#endif
 }
 
 void create_device(int port, DeviceType dtype)
@@ -86,8 +88,13 @@ void create_device(int port, DeviceType dtype)
             Debug.println();
             #endif
 
+#ifdef FAKE_MATE_DEVICES
+            bool connected = true;
+#else
             // Check that we can communicate and add it to our list
-            if (device->begin(port)) {
+            bool connected = device->begin(port);
+#endif
+            if (connected) {
                 print_revision(*device);
                 devices[num_devices] = device;
                 collectors[num_devices] = collector;
@@ -136,6 +143,12 @@ void scan()
     mx_master = nullptr;
     device_pool.deallocate_all(); // TODO: Call destructors
 
+#ifdef FAKE_MATE_DEVICES
+    create_device(1, DeviceType::Mx);
+    create_device(2, DeviceType::Fx);
+    create_device(3, DeviceType::Dc);
+
+#else
     // Force re-scan of bus.
     // Any future calls to scan() will use cached devices.
     Debug.println("Scanning for MATE devices...");
@@ -171,6 +184,7 @@ void scan()
         Debug.println("ERROR: No devices created!");
         return;
     }
+#endif
 
     // Publish initial (retained) info to MQTT, such as device revision & port
     for (int i = 0; i < num_devices; i++) {

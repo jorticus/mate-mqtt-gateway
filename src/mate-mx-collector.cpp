@@ -2,13 +2,24 @@
 
 void MxCollector::process(uint32_t now)
 { 
+    static uint8_t status[STATUS_RESP_SIZE] = {0};
+    static uint8_t logpage[LOG_RESP_SIZE] = {0};
+    struct tm currTime;
+
     // Rollover-safe timestamp check
     if ((now - tPrevStatus) >= statusIntervalMs) {
         tPrevStatus = now;
 
         Debug.println("Collect MX Status");
 
-        uint8_t status[STATUS_RESP_SIZE];
+        if (!getLocalTime(&currTime)) {
+            Debug.println("Error retrieving current time");
+            return; // Cannot publish.
+        }
+
+#ifdef FAKE_MATE_DEVICES   
+        publishStatus(&currTime, status, sizeof(status));
+#else
         if (dev.read_status(status, sizeof(status))) {
             // Debug.println("Status:");
             // for (int i = 0; i < sizeof(status); i++) {
@@ -16,8 +27,9 @@ void MxCollector::process(uint32_t now)
             // }
             // Debug.println();
 
-            publishStatus(now, status, sizeof(status));
+            publishStatus(&currTime, status, sizeof(status));
         }
+#endif
     }
 
     if ((now - tPrevLog) >= logIntervalMs) {
@@ -41,10 +53,13 @@ void MxCollector::process(uint32_t now)
             {
                 Debug.println("Collect MX Logpage");
 
-                uint8_t logpage[LOG_RESP_SIZE];
+#ifdef FAKE_MATE_DEVICES
+                publishLog(&currTime, logpage, sizeof(logpage));
+#else
                 if (dev.read_log(logpage, sizeof(logpage))) {
-                    publishLog(now, logpage, sizeof(logpage));
+                    publishLog(&currTime, logpage, sizeof(logpage));
                 }
+#endif
 
                 setNextLogpage(&currTime);
                 nextLogpageTime.tm_mday += 1;
@@ -70,19 +85,19 @@ void MxCollector::setNextLogpage(struct tm* currTime)
     Serial.println(&nextLogpageTime, "Next Logpage: %Y-%m-%d %H:%M:%S");
 }
 
-void MxCollector::publishStatus(uint32_t now, uint8_t* status, size_t size)
+void MxCollector::publishStatus(struct tm* currTime, uint8_t* status, size_t size)
 {
     // mate/mx-1/stat/raw
     // mate/mx-1/stat/ts
     publishTopic("stat/raw", status, size, false);
 
-    // TODO: Real timestamp
+    time_t t = mktime(currTime);
     char ts_str[20];
-    snprintf(ts_str, sizeof(ts_str), "%u", now);
+    snprintf(ts_str, sizeof(ts_str), "%lu", t);
     publishTopic("stat/ts", ts_str, false);
 }
 
-void MxCollector::publishLog(uint32_t now, uint8_t* log, size_t size)
+void MxCollector::publishLog(struct tm* currTime, uint8_t* log, size_t size)
 {
     // mate/mx-1/log/raw
     // mate/mx-1/log/ts

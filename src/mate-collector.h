@@ -65,7 +65,7 @@ public:
     void process(uint32_t now) override;
 
 protected:
-    void publishStatus(uint32_t now, uint8_t* status, size_t size);
+    void publishStatus(struct tm* currTime, uint8_t* status, size_t size);
 
     static const uint32_t statusIntervalMs = 60000; //ms
     uint32_t tPrevStatus;
@@ -84,9 +84,9 @@ public:
     void process(uint32_t now) override;
 
 protected:
-    void publishStatus(uint32_t now, uint8_t* status, size_t size);
+    void publishStatus(struct tm* currTime, uint8_t* status, size_t size);
 
-    void publishLog(uint32_t now, uint8_t* log, size_t size);
+    void publishLog(struct tm* currTime, uint8_t* log, size_t size);
 
     void setNextLogpage(struct tm* currTime);
 
@@ -108,7 +108,7 @@ public:
     void process(uint32_t now) override;
 
 protected:
-    void publishStatus(uint32_t now, uint8_t* status, size_t size);
+    void publishStatus(struct tm* currTime, uint8_t* status, size_t size);
 
     static const uint32_t statusIntervalMs = 10000; //ms
     uint32_t tPrevStatus;

@@ -35,10 +35,19 @@ void MateCollector::publishInfo()
 
     char payload[MQTT_MAX_PACKET_SIZE];
 
+#ifdef FAKE_MATE_DEVICES
+    static int port = 1;
+    snprintf(payload, sizeof(payload), "%d", port++);
+#else
     snprintf(payload, sizeof(payload), "%d", dev.port());
+#endif
     publishTopic("port", payload, true); // Retained
 
-    auto rev = dev.get_revision();
+#ifdef FAKE_MATE_DEVICES
+    revision_t rev = {1,2,3};
+#else
+    revision_t rev = dev.get_revision();
+#endif
     snprintf(payload, sizeof(payload), "%d.%d.%d", rev.a, rev.b, rev.c);
     publishTopic("rev", payload, true); // Retained
 
