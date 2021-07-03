@@ -48,13 +48,17 @@ MatePubContext              mate_context(Mqtt::client);
 void fault()
 {
     Debug.println("HALTED.");
-    if (m_ota_initialized) {
-        while (true) {
-            ArduinoOTA.handle();
-        }
-    } else {
-        while (true) { }
-    }
+    delay(5000);
+    ESP.restart();
+    while (true) continue;
+    
+    // if (m_ota_initialized) {
+    //     while (true) {
+    //         ArduinoOTA.handle();
+    //     }
+    // } else {
+    //     while (true) { }
+    // }
 }
 
 
