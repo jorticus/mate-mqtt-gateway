@@ -244,8 +244,6 @@ void setup()
 
 void loop()
 {
-    // TODO: Periodically query status from each attached device
-
     if (num_devices > 0) {
         uint32_t now = static_cast<uint32_t>(millis());
 

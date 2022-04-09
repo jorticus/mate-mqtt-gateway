@@ -124,6 +124,24 @@ private:
     MateCollectorContainer() = delete;
 };
 
+// A DC status packet consists of 6 individual status packets
+#define DC_STATUS_RESP_SIZE (STATUS_RESP_SIZE * 6)
+
+typedef struct {
+    time_t  timestamp;
+    uint8_t status[STATUS_RESP_SIZE];
+} StatusMqttPayload;
+
+typedef struct {
+    time_t  timestamp;
+    uint8_t status[DC_STATUS_RESP_SIZE];
+} DcStatusMqttPayload;
+
+typedef struct {
+    time_t  timestamp;
+    uint8_t logpage[LOG_RESP_SIZE];
+} MxLogPageMqttPayload;
+
 static_assert(sizeof(MateCollector) <= sizeof(MateCollectorContainer), "MateCollector size exceeds available container");
 static_assert(sizeof(MxCollector) <= sizeof(MateCollectorContainer), "MxCollector size exceeds available container");
 static_assert(sizeof(FxCollector) <= sizeof(MateCollectorContainer), "FxCollector size exceeds available container");

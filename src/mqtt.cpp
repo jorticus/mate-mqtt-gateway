@@ -172,8 +172,6 @@ void Mqtt::connect()
                 idle_loop();
             }
 
-            // TODO: After a number of attempts we should reset the config
-
             idle_loop();
         }
     }

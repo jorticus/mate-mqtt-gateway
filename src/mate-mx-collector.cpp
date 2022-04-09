@@ -66,8 +66,6 @@ void MxCollector::process(uint32_t now)
             }
         }
     }
-        
-    // TODO: Retrieve logpage
 }
 
 void MxCollector::setNextLogpage(struct tm* currTime)
@@ -87,18 +85,46 @@ void MxCollector::setNextLogpage(struct tm* currTime)
 
 void MxCollector::publishStatus(struct tm* currTime, uint8_t* status, size_t size)
 {
+    // mate/mx-1/mx-status
     // mate/mx-1/stat/raw
     // mate/mx-1/stat/ts
+
+    StatusMqttPayload payload;
+
+    if (size > sizeof(payload.status))
+        size = sizeof(payload.status);
+
+    payload.timestamp = mktime(currTime);
+    memcpy(payload.status, status, sizeof(payload.status));
+    
+
+    publishTopic("mx-status", 
+        reinterpret_cast<uint8_t*>(&payload), 
+        sizeof(payload), 
+        false);
+
+    // TODO: Deprecate
     publishTopic("stat/raw", status, size, false);
 
-    time_t t = mktime(currTime);
+    // TODO: Deprecate
     char ts_str[20];
-    snprintf(ts_str, sizeof(ts_str), "%lu", t);
+    snprintf(ts_str, sizeof(ts_str), "%lu", payload.timestamp);
     publishTopic("stat/ts", ts_str, false);
 }
 
-void MxCollector::publishLog(struct tm* currTime, uint8_t* log, size_t size)
+void MxCollector::publishLog(struct tm* currTime, uint8_t* logpage, size_t size)
 {
-    // mate/mx-1/log/raw
-    // mate/mx-1/log/ts
+    // mate/mx-1/mx-logpage
+    MxLogPageMqttPayload payload;
+
+    if (size > sizeof(payload.logpage))
+        size = sizeof(payload.logpage);
+
+    payload.timestamp = mktime(currTime);
+    memcpy(payload.logpage, logpage, sizeof(payload.logpage));
+    
+    publishTopic("mx-logpage", 
+        reinterpret_cast<uint8_t*>(&payload), 
+        sizeof(payload), 
+        false);
 }

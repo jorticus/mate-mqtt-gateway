@@ -2,6 +2,7 @@
 
 void DcCollector::process(uint32_t now)
 { 
+    // A DC status packet consists of 6 individual status packets
     static uint8_t status[STATUS_RESP_SIZE * 6] = {0};
     struct tm currTime;
 
@@ -36,10 +37,24 @@ void DcCollector::publishStatus(struct tm* currTime, uint8_t* status, size_t siz
 {
     // mate/dc-1/stat/raw
     // mate/dc-1/stat/ts
+    DcStatusMqttPayload payload;
+
+    if (size > sizeof(payload.status))
+        size = sizeof(payload.status);
+
+    payload.timestamp = mktime(currTime);
+    memcpy(payload.status, status, sizeof(payload.status));
+    
+    publishTopic("dc-status", 
+        reinterpret_cast<uint8_t*>(&payload), 
+        sizeof(payload), 
+        false);
+
+    // TODO: Deprecate
     publishTopic("stat/raw", status, size, false);
 
-    time_t t = mktime(currTime);
+    // TODO: Deprecate
     char ts_str[20];
-    snprintf(ts_str, sizeof(ts_str), "%lu", t);
+    snprintf(ts_str, sizeof(ts_str), "%lu", payload.timestamp);
     publishTopic("stat/ts", ts_str, false);
 }

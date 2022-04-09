@@ -25,16 +25,35 @@ void FxCollector::process(uint32_t now)
     }
 }
 
+typedef struct {
+    time_t  timestamp;
+    uint8_t status[STATUS_RESP_SIZE];
+} FxStatusMqttPayload;
+
 void FxCollector::publishStatus(struct tm* currTime, uint8_t* status, size_t size)
 {
     // mate/fx-1/stat/raw
     // mate/fx-1/stat/ts
+
+    StatusMqttPayload payload;
+
+    if (size > sizeof(payload.status))
+        size = sizeof(payload.status);
+
+    payload.timestamp = mktime(currTime);
+    memcpy(payload.status, status, sizeof(payload.status));
+    
+
+    publishTopic("fx-status", 
+        reinterpret_cast<uint8_t*>(&payload), 
+        sizeof(payload), 
+        false);
+ 
+    // TODO: Deprecate
     publishTopic("stat/raw", status, size, false);
 
-    time_t t = mktime(currTime);
     char ts_str[20];
-    snprintf(ts_str, sizeof(ts_str), "%lu", t);
+    snprintf(ts_str, sizeof(ts_str), "%lu", payload.timestamp);
+    // TODO: Deprecate
     publishTopic("stat/ts", ts_str, false);
-
-    // TODO: Get 230/110v flag from status packet
 }
